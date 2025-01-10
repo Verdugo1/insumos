@@ -20,11 +20,11 @@ if not os.path.exists(ruta_insumos) or not os.path.exists(ruta_promociones):
 else:
     # Cargar insumos
     try:
-    data = pd.ExcelFile(ruta_insumos)
-    hoja = data.sheet_names[4]  # Cambia al índice o nombre de la hoja que necesitas
-    df = pd.read_excel(ruta_insumos, sheet_name=hoja)
-    insumos = {}
-    item_actual = None
+        data = pd.ExcelFile(ruta_insumos)
+        hoja = data.sheet_names[4]  # Cambia al índice o nombre de la hoja que necesitas
+        df = pd.read_excel(ruta_insumos, sheet_name=hoja)
+        insumos = {}
+        item_actual = None
 
     for _, row in df.iterrows():
         # Detectar el inicio de una nueva sección (ítem del menú)

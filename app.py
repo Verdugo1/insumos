@@ -10,7 +10,7 @@ def encontrar_mejor_match(nombre, opciones, umbral):
     return None
 
 # Cargar los archivos de insumos y promociones desde la raíz del repositorio
-archivo_insumos = "KENTO costo dosificaciones..xlsx"  # Archivo con los insumos
+archivo_insumos = "insumos.xlsx"  # Archivo con los insumos
 archivo_promociones = "promociones.xlsx"  # Archivo con el diccionario de promociones
 
 # Configuración

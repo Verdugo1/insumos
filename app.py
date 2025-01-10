@@ -27,7 +27,6 @@ for i, row in df_insumos.iterrows():
         unidad = str(unidad).strip() if isinstance(unidad, str) else str(unidad)
         unidades_insumos[insumo] = unidad
 
-
 # Cargar las promociones
 df_promociones = pd.read_excel(archivo_promociones)
 promociones = {}
@@ -71,24 +70,15 @@ if uploaded_file is not None:
         if mejor_match_promocion:  # Es una promoción
             for item in promociones[mejor_match_promocion]:
                 mejor_match_item = encontrar_mejor_match(item, items_unicos, umbral_similitud)
-                if mejor_match_item and mejor_match_item in insumos:
-                    for insumo, cantidad in insumos[mejor_match_item].items():
-                        try:
-                            cantidad = float(cantidad)
-                        except ValueError:
-                            st.warning(f"Advertencia: 'cantidad' no es numérico para el insumo {insumo}, valor: {cantidad}")
-                            continue
-                        consumo_insumos_total[insumo] = consumo_insumos_total.get(insumo, 0) + cantidad * cantidad_vendida
+                if mejor_match_item and mejor_match_item in unidades_insumos:
+                    # Acceder correctamente a las unidades de insumos
+                    unidad = unidades_insumos.get(mejor_match_item, "Sin unidad")
+                    consumo_insumos_total[mejor_match_item] = consumo_insumos_total.get(mejor_match_item, 0) + cantidad_vendida
         else:  # No es una promoción
             mejor_match_item = encontrar_mejor_match(item_vendido, items_unicos, umbral_similitud)
-            if mejor_match_item and mejor_match_item in insumos:
-                for insumo, cantidad in insumos[mejor_match_item].items():
-                    try:
-                        cantidad = float(cantidad)
-                    except ValueError:
-                        st.warning(f"Advertencia: 'cantidad' no es numérico para el insumo {insumo}, valor: {cantidad}")
-                        continue
-                    consumo_insumos_total[insumo] = consumo_insumos_total.get(insumo, 0) + cantidad * cantidad_vendida
+            if mejor_match_item and mejor_match_item in unidades_insumos:
+                unidad = unidades_insumos.get(mejor_match_item, "Sin unidad")
+                consumo_insumos_total[mejor_match_item] = consumo_insumos_total.get(mejor_match_item, 0) + cantidad_vendida
 
     # Preparar los datos para exportar, incluyendo unidades
     datos_exportar = []

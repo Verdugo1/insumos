@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from fuzzywuzzy import process
+from io import BytesIO
 
 # Función para encontrar el mejor match usando fuzzywuzzy
 def encontrar_mejor_match(nombre, opciones, umbral):
@@ -92,10 +93,18 @@ if uploaded_file is not None:
     # Mostrar el DataFrame en Streamlit
     st.write(df_consumo_insumos_total)
 
+    # Función para convertir el DataFrame a un archivo Excel en memoria
+    def convertir_a_excel(df):
+        excel_file = BytesIO()
+        with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False, sheet_name="Consumo Insumos")
+        excel_file.seek(0)
+        return excel_file
+
     # Opción para descargar el archivo de resultados
     st.download_button(
         label="Descargar archivo de consumo de insumos",
-        data=df_consumo_insumos_total.to_excel(index=False, sheet_name="Consumo Insumos"),
+        data=convertir_a_excel(df_consumo_insumos_total),
         file_name="consumo_insumos_total.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )

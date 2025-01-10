@@ -17,13 +17,13 @@ def encontrar_mejor_match(nombre, opciones, umbral):
 st.title("Cálculo de Consumo de Insumos para Ventas")
 
 # Subir archivos
-archivo_insumos = st.file_uploader("Sube el archivo de insumos (KENTO costo dosificaciones..xlsx)", type=["xlsx"])
 archivo_ventas = st.file_uploader("Sube el archivo de ventas", type=["xlsx"])
 archivo_promociones = st.file_uploader("Sube el archivo de promociones", type=["xlsx"])
 
 # Validar si los archivos han sido subidos
-if archivo_insumos and archivo_ventas and archivo_promociones:
-    # Leer archivos de insumos, ventas y promociones
+if archivo_ventas and archivo_promociones:
+    # Leer archivo de insumos desde la raíz del repositorio de GitHub
+    archivo_insumos = "https://github.com/tu_usuario/tu_repositorio/raw/main/insumos.xlsx"  # Cambia esto por la URL correcta
     df_insumos = pd.read_excel(archivo_insumos, sheet_name=4)  # Ajustar el índice de la hoja si es necesario
     df_ventas = pd.read_excel(archivo_ventas, sheet_name=3)  # Ajustar el índice de la hoja si es necesario
     df_promociones = pd.read_excel(archivo_promociones)

@@ -66,19 +66,23 @@ def procesar_ventas(archivo_ventas, archivo_promociones, insumos, umbral_similit
 
 # Interfaz Streamlit
 st.title("Procesador de Ventas y Consumos")
-st.write("Sube los archivos necesarios para procesar los datos.")
+st.write("Sube el archivo de ventas para procesar los datos.")
 
-archivo_insumos = st.file_uploader("Sube el archivo de insumos", type=["xlsx"])
+# Cargar archivos en el backend
+archivo_insumos = "/insumos.xlsx"  # Ruta del archivo de insumos en el backend
+archivo_promociones = "/promociones.xlsx"  # Ruta del archivo de promociones en el backend
+
+# Subida de archivo de ventas por parte del usuario
 archivo_ventas = st.file_uploader("Sube el archivo de ventas", type=["xlsx"])
-archivo_promociones = st.file_uploader("Sube el archivo de promociones", type=["xlsx"])
 umbral_similitud = st.slider("Umbral de similitud", 0, 100, 80)
 
-if archivo_insumos and archivo_ventas and archivo_promociones:
-    st.success("Archivos cargados correctamente.")
-    
+if archivo_ventas:
+    st.success("Archivo de ventas cargado correctamente.")
+
+    # Procesar archivos
     insumos = procesar_insumos(archivo_insumos)
     resultado = procesar_ventas(archivo_ventas, archivo_promociones, insumos, umbral_similitud)
-    
+
     st.write("Resultado del procesamiento:")
     st.dataframe(resultado)
 

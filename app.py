@@ -1,152 +1,111 @@
 import streamlit as st
 import pandas as pd
 from fuzzywuzzy import process
-import os
 
-# Configuración inicial
-st.title("Cálculo de Consumo de Insumos para Kento Sushi 🍣")
+# Función para encontrar el mejor match usando fuzzywuzzy
+def encontrar_mejor_match(nombre, opciones, umbral):
+    match, similitud = process.extractOne(nombre, opciones)
+    if similitud >= umbral:
+        return match
+    return None
 
-# Umbral de similitud ajustable desde la interfaz
-umbral_similitud = st.slider("Umbral de similitud para fuzzy matching", min_value=50, max_value=100, value=85)
+# Cargar los archivos de insumos y promociones desde la raíz del repositorio
+archivo_insumos = "KENTO costo dosificaciones..xlsx"  # Archivo con los insumos
+archivo_promociones = "promociones.xlsx"  # Archivo con el diccionario de promociones
 
-# Cargar archivos automáticamente desde el repositorio
-archivo_ventas = st.file_uploader("Sube el archivo de Ventas Semanales", type=["xlsx"])
-ruta_insumos = "./insumos.xlsx"
-ruta_promociones = "./promociones.xlsx"
+# Configuración
+umbral_similitud = 85  # Porcentaje mínimo de similitud para considerar un match
 
-# Verificar si los archivos de insumos y promociones están en la raíz del proyecto
-if not os.path.exists(ruta_insumos) or not os.path.exists(ruta_promociones):
-    st.error("Los archivos 'insumos.xlsx' y/o 'promociones.xlsx' no se encuentran en la raíz del proyecto.")
-else:
-    # Cargar insumos
-    try:
-        data = pd.ExcelFile(ruta_insumos)
-        hoja = data.sheet_names[4]  # Cambia al índice o nombre de la hoja que necesitas
-        df = pd.read_excel(ruta_insumos, sheet_name=hoja)
-        # Crear un diccionario para almacenar los consumos
-        insumos = {}
-        
-        # Variable para guardar el ítem actual
-        item_actual = None
-        
-        # Extraer información de las tablas
-        for index, row in df.iterrows():
-            # Detectar el inicio de una nueva sección (ítem del menú)
-            if isinstance(row[0], str) and "***" in row[0]:  # Columna A contiene ***
-                item_actual = row[1].strip()  # El nombre del ítem está en la columna B
-                insumos[item_actual] = {}  # Inicializar su diccionario de insumos
-        
-            # Extraer los insumos y cantidades (si ya tenemos un ítem actual)
-            elif item_actual and isinstance(row[1], str):  # Columna B tiene el insumo
-                insumo = row[1].strip()  # Nombre del insumo
-                cantidad = row[6]  # Columna donde está la cantidad (ajusta según tu archivo)
-                if pd.notna(cantidad):  # Asegurarnos de que no sea NaN
-                    insumos[item_actual][insumo] = cantidad
-        
-        # Mostrar el diccionario final
-        print("Consumos por ítem:")
-        for item, insumos_dict in insumos.items():
-            print(f"\n{item}:")
-            for insumo, cantidad in insumos_dict.items():
-                print(f"  {insumo}: {cantidad}")
-    except Exception as e:
-        st.error(f"Error al procesar el diccionario de insumos: {e}")
-        st.stop()
+# Cargar el archivo de insumos para obtener las unidades
+df_insumos = pd.read_excel(archivo_insumos, sheet_name=4)  # Ajusta el índice o nombre de la hoja
+unidades_insumos = {}
+for i, row in df_insumos.iterrows():
+    insumo = row[1]  # Columna B tiene el nombre del insumo
+    unidad = row[2]  # Columna C tiene la unidad
+    if pd.notna(insumo) and pd.notna(unidad):  # Verificar que no sean NaN
+        insumo = str(insumo).strip() if isinstance(insumo, str) else str(insumo)
+        unidad = str(unidad).strip() if isinstance(unidad, str) else str(unidad)
+        unidades_insumos[insumo] = unidad
 
-    # Cargar promociones
-    try:
-        df_promociones = pd.read_excel(ruta_promociones)
-        promociones = {
-            row[0]: [item for item in row[1:] if pd.notna(item)]
-            for _, row in df_promociones.iterrows()
-        }
-    except Exception as e:
-        st.error(f"Error al cargar el archivo de promociones: {e}")
-        st.stop()
 
-    # Procesar archivo de ventas solo si se sube
-    if archivo_ventas:
+# Cargar las promociones
+df_promociones = pd.read_excel(archivo_promociones)
+promociones = {}
+for i, row in df_promociones.iterrows():
+    nombre_promocion = row[0]  # Nombre de la promoción
+    items = row[1:]  # Resto de las columnas
+    promociones[nombre_promocion] = [item for item in items if pd.notna(item)]
+
+# Crear una lista de todos los ítems únicos
+items_unicos = set()
+for item in promociones.values():
+    items_unicos.update(item)
+
+# Leer el archivo de ventas subido por el usuario
+st.title('Análisis de Consumo de Insumos')
+
+uploaded_file = st.file_uploader("Sube el archivo de ventas", type=["xlsx"])
+
+if uploaded_file is not None:
+    # Cargar las ventas desde el archivo de ventas subido
+    df_ventas = pd.read_excel(uploaded_file, sheet_name=3)
+    
+    # Crear un diccionario para el consumo total de insumos
+    consumo_insumos_total = {}
+
+    # Procesar las ventas
+    for i, row in df_ventas.iterrows():
+        item_vendido = row["Nombre"]  # Nombre del ítem o promoción (ajustar nombre de la columna)
+        cantidad_vendida = row["Unidades vendidas"]  # Cantidad vendida (ajustar nombre de la columna)
+
+        # Asegurarse de que cantidad_vendida es un número
         try:
-            df_ventas = pd.read_excel(archivo_ventas, sheet_name=3)
-        except Exception as e:
-            st.error(f"Error al cargar el archivo de ventas: {e}")
-            st.stop()
+            cantidad_vendida = float(cantidad_vendida)
+        except ValueError:
+            st.warning(f"Advertencia: 'cantidad_vendida' no es numérico para la fila {i}, valor: {cantidad_vendida}")
+            continue
 
-        # Crear el diccionario de insumos
-        try:
-            data = pd.ExcelFile(ruta_insumos)
-            hoja = data.sheet_names[4]
-            df = pd.read_excel(ruta_insumos, sheet_name=hoja)
-            insumos = {}
-            item_actual = None
+        # Intentar encontrar el ítem en promociones
+        mejor_match_promocion = encontrar_mejor_match(item_vendido, promociones.keys(), umbral_similitud)
 
-            for _, row in df.iterrows():
-                if isinstance(row[0], str) and "***" in row[0]:
-                    item_actual = row[1].strip()
-                    insumos[item_actual] = {}
-                elif item_actual and isinstance(row[1], str):
-                    insumo = row[1].strip()
-                    cantidad = row[6]
-                    if pd.notna(cantidad):
-                        insumos[item_actual][insumo] = float(cantidad)
-        except Exception as e:
-            st.error(f"Error al procesar el diccionario de insumos: {e}")
-            st.stop()
-
-        # Función para encontrar el mejor match
-        def encontrar_mejor_match(nombre, opciones, umbral):
-            match, similitud = process.extractOne(nombre, opciones)
-            return match if similitud >= umbral else None
-
-        # Crear un diccionario para el consumo total de insumos
-        consumo_insumos_total = {}
-
-        # Procesar las ventas
-        for _, row in df_ventas.iterrows():
-            item_vendido = row["Nombre"]
-            cantidad_vendida = row["Unidades vendidas"]
-
-            try:
-                cantidad_vendida = float(cantidad_vendida)
-            except ValueError:
-                continue
-
-            mejor_match_promocion = encontrar_mejor_match(item_vendido, promociones.keys(), umbral_similitud)
-
-            if mejor_match_promocion:
-                for item in promociones[mejor_match_promocion]:
-                    mejor_match_item = encontrar_mejor_match(item, insumos.keys(), umbral_similitud)
-                    if mejor_match_item:
-                        for insumo, cantidad in insumos[mejor_match_item].items():
-                            consumo_insumos_total[insumo] = consumo_insumos_total.get(insumo, 0) + cantidad * cantidad_vendida
-            else:
-                mejor_match_item = encontrar_mejor_match(item_vendido, insumos.keys(), umbral_similitud)
-                if mejor_match_item:
+        if mejor_match_promocion:  # Es una promoción
+            for item in promociones[mejor_match_promocion]:
+                mejor_match_item = encontrar_mejor_match(item, items_unicos, umbral_similitud)
+                if mejor_match_item and mejor_match_item in insumos:
                     for insumo, cantidad in insumos[mejor_match_item].items():
+                        try:
+                            cantidad = float(cantidad)
+                        except ValueError:
+                            st.warning(f"Advertencia: 'cantidad' no es numérico para el insumo {insumo}, valor: {cantidad}")
+                            continue
                         consumo_insumos_total[insumo] = consumo_insumos_total.get(insumo, 0) + cantidad * cantidad_vendida
+        else:  # No es una promoción
+            mejor_match_item = encontrar_mejor_match(item_vendido, items_unicos, umbral_similitud)
+            if mejor_match_item and mejor_match_item in insumos:
+                for insumo, cantidad in insumos[mejor_match_item].items():
+                    try:
+                        cantidad = float(cantidad)
+                    except ValueError:
+                        st.warning(f"Advertencia: 'cantidad' no es numérico para el insumo {insumo}, valor: {cantidad}")
+                        continue
+                    consumo_insumos_total[insumo] = consumo_insumos_total.get(insumo, 0) + cantidad * cantidad_vendida
 
-        # Crear el DataFrame final con unidades
-        datos_exportar = [
-            {"Insumo": insumo, "Cantidad Total": cantidad_total, "Unidad": unidades_insumos.get(insumo, "Sin unidad")}
-            for insumo, cantidad_total in consumo_insumos_total.items()
-        ]
-        df_consumo_insumos_total = pd.DataFrame(datos_exportar)
+    # Preparar los datos para exportar, incluyendo unidades
+    datos_exportar = []
+    for insumo, cantidad_total in consumo_insumos_total.items():
+        unidad = unidades_insumos.get(insumo, "Sin unidad")  # Buscar la unidad, si no existe colocar "Sin unidad"
+        datos_exportar.append({"Insumo": insumo, "Cantidad Total": cantidad_total, "Unidad": unidad})
 
-        # Mostrar el resultado en la aplicación
-        st.subheader("Consumo Total de Insumos")
-        st.dataframe(df_consumo_insumos_total)
+    # Convertir los datos a un DataFrame
+    df_consumo_insumos_total = pd.DataFrame(datos_exportar)
 
-        # Botón para exportar el archivo
-        if st.button("Exportar a Excel"):
-            ruta_salida = "consumo_insumos_total.xlsx"
-            df_consumo_insumos_total.to_excel(ruta_salida, index=False, sheet_name="Consumo Insumos")
-            st.success(f"Archivo exportado exitosamente: {ruta_salida}")
-            with open(ruta_salida, "rb") as file:
-                st.download_button(
-                    label="Descargar archivo",
-                    data=file,
-                    file_name="consumo_insumos_total.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-    else:
-        st.warning("Por favor, sube el archivo de ventas para continuar.")
+    # Mostrar el DataFrame en Streamlit
+    st.write(df_consumo_insumos_total)
+
+    # Opción para descargar el archivo de resultados
+    st.download_button(
+        label="Descargar archivo de consumo de insumos",
+        data=df_consumo_insumos_total.to_excel(index=False, sheet_name="Consumo Insumos"),
+        file_name="consumo_insumos_total.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )

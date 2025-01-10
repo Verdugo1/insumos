@@ -23,26 +23,32 @@ else:
         data = pd.ExcelFile(ruta_insumos)
         hoja = data.sheet_names[4]  # Cambia al índice o nombre de la hoja que necesitas
         df = pd.read_excel(ruta_insumos, sheet_name=hoja)
+        # Crear un diccionario para almacenar los consumos
         insumos = {}
+        
+        # Variable para guardar el ítem actual
         item_actual = None
-
-        for _, row in df.iterrows():
+        
+        # Extraer información de las tablas
+        for index, row in df.iterrows():
             # Detectar el inicio de una nueva sección (ítem del menú)
-            if isinstance(row[0], str) and "***" in row[0]:  # Columna A contiene "***"
-                item_actual = row[1].strip() if pd.notna(row[1]) else None  # El nombre del ítem está en la columna B
-                if item_actual:
-                    insumos[item_actual] = {}  # Inicializar su diccionario de insumos
-
+            if isinstance(row[0], str) and "***" in row[0]:  # Columna A contiene ***
+                item_actual = row[1].strip()  # El nombre del ítem está en la columna B
+                insumos[item_actual] = {}  # Inicializar su diccionario de insumos
+        
             # Extraer los insumos y cantidades (si ya tenemos un ítem actual)
             elif item_actual and isinstance(row[1], str):  # Columna B tiene el insumo
-                insumo = row[1].strip() if pd.notna(row[1]) else None  # Nombre del insumo
+                insumo = row[1].strip()  # Nombre del insumo
                 cantidad = row[6]  # Columna donde está la cantidad (ajusta según tu archivo)
-                if insumo and pd.notna(cantidad):
-                    try:
-                        cantidad = float(cantidad)  # Intentar convertir a float
-                        insumos[item_actual][insumo] = cantidad
-                    except ValueError:
-                        st.warning(f"Valor no numérico ignorado para el insumo '{insumo}': {cantidad}")
+                if pd.notna(cantidad):  # Asegurarnos de que no sea NaN
+                    insumos[item_actual][insumo] = cantidad
+        
+        # Mostrar el diccionario final
+        print("Consumos por ítem:")
+        for item, insumos_dict in insumos.items():
+            print(f"\n{item}:")
+            for insumo, cantidad in insumos_dict.items():
+                print(f"  {insumo}: {cantidad}")
     except Exception as e:
         st.error(f"Error al procesar el diccionario de insumos: {e}")
         st.stop()

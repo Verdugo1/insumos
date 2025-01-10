@@ -2,96 +2,123 @@ import streamlit as st
 import pandas as pd
 from fuzzywuzzy import process
 
-# Función para procesar las tablas de insumos
-def procesar_insumos(archivo):
-    data = pd.ExcelFile(archivo)
-    hoja = data.sheet_names[4]  # Ajusta según la hoja que necesitas
-    df = pd.read_excel(archivo, sheet_name=hoja)
+# Configuración inicial
+st.title("Cálculo de Consumo de Insumos para Kento Sushi 🍣")
 
-    insumos = {}
-    item_actual = None
+# Subir archivos requeridos
+archivo_ventas = st.file_uploader("Sube el archivo de Ventas Semanales", type=["xlsx"])
+archivo_promociones = st.file_uploader("Sube el archivo de Promociones", type=["xlsx"])
+archivo_insumos = st.file_uploader("Sube el archivo de Insumos", type=["xlsx"])
+umbral_similitud = st.slider("Umbral de similitud para fuzzy matching", min_value=50, max_value=100, value=85)
 
-    for index, row in df.iterrows():
-        if isinstance(row[0], str) and "***" in row[0]:  # Detectar secciones
-            item_actual = row[1].strip()  # Nombre del ítem
-            insumos[item_actual] = {}
-        elif item_actual and isinstance(row[1], str):
-            insumo = row[1].strip()
-            cantidad = row[6]  # Ajusta según la columna de cantidad
-            if pd.notna(cantidad):
-                insumos[item_actual][insumo] = cantidad
+# Procesar los archivos solo si todos están cargados
+if archivo_ventas and archivo_promociones and archivo_insumos:
+    # Leer archivo de insumos
+    try:
+        df_insumos = pd.read_excel(archivo_insumos, sheet_name=4)
+        unidades_insumos = {}
+        for _, row in df_insumos.iterrows():
+            insumo = str(row[1]).strip() if pd.notna(row[1]) else None
+            unidad = str(row[2]).strip() if pd.notna(row[2]) else None
+            if insumo and unidad:
+                unidades_insumos[insumo] = unidad
+    except Exception as e:
+        st.error(f"Error al cargar el archivo de insumos: {e}")
+        st.stop()
 
-    return insumos
+    # Leer archivo de promociones
+    try:
+        df_promociones = pd.read_excel(archivo_promociones)
+        promociones = {
+            row[0]: [item for item in row[1:] if pd.notna(item)]
+            for _, row in df_promociones.iterrows()
+        }
+    except Exception as e:
+        st.error(f"Error al cargar el archivo de promociones: {e}")
+        st.stop()
 
-# Función para encontrar el mejor match usando fuzzywuzzy
-def encontrar_mejor_match(nombre, opciones, umbral):
-    match, similitud = process.extractOne(nombre, opciones)
-    if similitud >= umbral:
-        return match
-    return None
+    # Leer archivo de ventas
+    try:
+        df_ventas = pd.read_excel(archivo_ventas, sheet_name=3)
+    except Exception as e:
+        st.error(f"Error al cargar el archivo de ventas: {e}")
+        st.stop()
 
-# Función principal para procesar las ventas
-def procesar_ventas(archivo_ventas, archivo_promociones, insumos, umbral_similitud):
-    df_promociones = pd.read_excel(archivo_promociones)
-    df_ventas = pd.read_excel(archivo_ventas, sheet_name=3)
+    # Crear el diccionario de insumos
+    try:
+        data = pd.ExcelFile(archivo_insumos)
+        hoja = data.sheet_names[4]
+        df = pd.read_excel(archivo_insumos, sheet_name=hoja)
+        insumos = {}
+        item_actual = None
 
-    promociones = {}
-    for i, row in df_promociones.iterrows():
-        nombre_promocion = row[0]
-        items = row[1:]
-        promociones[nombre_promocion] = [item for item in items if pd.notna(item)]
+        for _, row in df.iterrows():
+            if isinstance(row[0], str) and "***" in row[0]:
+                item_actual = row[1].strip()
+                insumos[item_actual] = {}
+            elif item_actual and isinstance(row[1], str):
+                insumo = row[1].strip()
+                cantidad = row[6]
+                if pd.notna(cantidad):
+                    insumos[item_actual][insumo] = float(cantidad)
+    except Exception as e:
+        st.error(f"Error al procesar el diccionario de insumos: {e}")
+        st.stop()
 
-    items_unicos = set()
-    for items in promociones.values():
-        items_unicos.update(items)
-    items_unicos = list(items_unicos)
+    # Función para encontrar el mejor match
+    def encontrar_mejor_match(nombre, opciones, umbral):
+        match, similitud = process.extractOne(nombre, opciones)
+        return match if similitud >= umbral else None
 
-    consumo_total = {}
-    for i, row in df_ventas.iterrows():
+    # Crear un diccionario para el consumo total de insumos
+    consumo_insumos_total = {}
+
+    # Procesar las ventas
+    for _, row in df_ventas.iterrows():
         item_vendido = row["Nombre"]
         cantidad_vendida = row["Unidades vendidas"]
 
-        mejor_match = encontrar_mejor_match(item_vendido, promociones.keys(), umbral_similitud)
-        if mejor_match:
-            for item in promociones[mejor_match]:
-                item_match = encontrar_mejor_match(item, items_unicos, umbral_similitud)
-                if item_match:
-                    consumo_total[item_match] = consumo_total.get(item_match, 0) + cantidad_vendida
+        try:
+            cantidad_vendida = float(cantidad_vendida)
+        except ValueError:
+            continue
+
+        mejor_match_promocion = encontrar_mejor_match(item_vendido, promociones.keys(), umbral_similitud)
+
+        if mejor_match_promocion:
+            for item in promociones[mejor_match_promocion]:
+                mejor_match_item = encontrar_mejor_match(item, insumos.keys(), umbral_similitud)
+                if mejor_match_item:
+                    for insumo, cantidad in insumos[mejor_match_item].items():
+                        consumo_insumos_total[insumo] = consumo_insumos_total.get(insumo, 0) + cantidad * cantidad_vendida
         else:
-            item_match = encontrar_mejor_match(item_vendido, items_unicos, umbral_similitud)
-            if item_match:
-                consumo_total[item_match] = consumo_total.get(item_match, 0) + cantidad_vendida
+            mejor_match_item = encontrar_mejor_match(item_vendido, insumos.keys(), umbral_similitud)
+            if mejor_match_item:
+                for insumo, cantidad in insumos[mejor_match_item].items():
+                    consumo_insumos_total[insumo] = consumo_insumos_total.get(insumo, 0) + cantidad * cantidad_vendida
 
-    return pd.DataFrame(consumo_total.items(), columns=["Item", "Cantidad Consumida"])
+    # Crear el DataFrame final con unidades
+    datos_exportar = [
+        {"Insumo": insumo, "Cantidad Total": cantidad_total, "Unidad": unidades_insumos.get(insumo, "Sin unidad")}
+        for insumo, cantidad_total in consumo_insumos_total.items()
+    ]
+    df_consumo_insumos_total = pd.DataFrame(datos_exportar)
 
-# Interfaz Streamlit
-st.title("Procesador de Ventas y Consumos")
-st.write("Sube el archivo de ventas para procesar los datos.")
+    # Mostrar el resultado en la aplicación
+    st.subheader("Consumo Total de Insumos")
+    st.dataframe(df_consumo_insumos_total)
 
-# Cargar archivos en el backend
-archivo_insumos = "insumos.xlsx"  # Ruta del archivo de insumos en el backend
-archivo_promociones = "promociones.xlsx"  # Ruta del archivo de promociones en el backend
-
-# Subida de archivo de ventas por parte del usuario
-archivo_ventas = st.file_uploader("Sube el archivo de ventas", type=["xlsx"])
-umbral_similitud = st.slider("Umbral de similitud", 0, 100, 80)
-
-if archivo_ventas:
-    st.success("Archivo de ventas cargado correctamente.")
-
-    # Procesar archivos
-    insumos = procesar_insumos(archivo_insumos)
-    resultado = procesar_ventas(archivo_ventas, archivo_promociones, insumos, umbral_similitud)
-
-    st.write("Resultado del procesamiento:")
-    st.dataframe(resultado)
-
-    # Botón para descargar el archivo procesado
-    if st.button("Descargar resultado como Excel"):
-        resultado_excel = resultado.to_excel(index=False, engine="openpyxl")
-        st.download_button(
-            label="Descargar Excel",
-            data=resultado_excel,
-            file_name="resultado_procesado.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+    # Botón para exportar el archivo
+    if st.button("Exportar a Excel"):
+        ruta_salida = "consumo_insumos_total.xlsx"
+        df_consumo_insumos_total.to_excel(ruta_salida, index=False, sheet_name="Consumo Insumos")
+        st.success(f"Archivo exportado exitosamente: {ruta_salida}")
+        with open(ruta_salida, "rb") as file:
+            st.download_button(
+                label="Descargar archivo",
+                data=file,
+                file_name="consumo_insumos_total.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+else:
+    st.warning("Por favor, sube todos los archivos requeridos para continuar.")

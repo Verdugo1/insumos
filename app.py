@@ -69,8 +69,8 @@ st.title("Procesador de Ventas y Consumos")
 st.write("Sube el archivo de ventas para procesar los datos.")
 
 # Cargar archivos en el backend
-archivo_insumos = "/insumos.xlsx"  # Ruta del archivo de insumos en el backend
-archivo_promociones = "/promociones.xlsx"  # Ruta del archivo de promociones en el backend
+archivo_insumos = "insumos.xlsx"  # Ruta del archivo de insumos en el backend
+archivo_promociones = "promociones.xlsx"  # Ruta del archivo de promociones en el backend
 
 # Subida de archivo de ventas por parte del usuario
 archivo_ventas = st.file_uploader("Sube el archivo de ventas", type=["xlsx"])
